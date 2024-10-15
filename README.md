@@ -152,7 +152,7 @@ to
 ```
 
 
-## **C-02: Incorrect Loan Logic in `getLoan` Function Allows Excessive Loans**
+## **C-03: Incorrect Loan Logic in `getLoan` Function Allows Excessive Loans**
 - **Link:** [HalbornLoans.sol#L60](https://github.com/HalbornSecurity/CTFs/blob/6bc8cc1c8f5ac6c75a21da6d5ef7043f0862603b/HalbornCTF_Solidity_Ethereum/src/HalbornLoans.sol#L60)
 
 ### **Issue:**
