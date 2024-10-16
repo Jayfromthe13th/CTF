@@ -1,3 +1,14 @@
+
+# Halborn CTF: Solidity Code Vulnerability Assessment
+
+This document presents a comprehensive audit of vulnerabilities identified within the **Halborn CTF** Solidity codebase. The code analyzed includes three main smart contracts used in the Halborn loans and NFTs system, sourced from the following repositories:
+
+- [HalbornLoans.sol](https://github.com/HalbornSecurity/CTFs/blob/6bc8cc1c8f5ac6c75a21da6d5ef7043f0862603b/HalbornCTF_Solidity_Ethereum/src/HalbornLoans.sol)
+- [HalbornNFT.sol](https://github.com/HalbornSecurity/CTFs/blob/6bc8cc1c8f5ac6c75a21da6d5ef7043f0862603b/HalbornCTF_Solidity_Ethereum/src/HalbornNFT.sol)
+- [HalbornToken.sol](https://github.com/HalbornSecurity/CTFs/blob/6bc8cc1c8f5ac6c75a21da6d5ef7043f0862603b/HalbornCTF_Solidity_Ethereum/src/HalbornToken.sol)
+
+
+
 ## Vulnerability Summary
 
 | **Vulnerability Level** | **Total** |
@@ -5,8 +16,7 @@
 | [Critical](#critical-issues)             | 8         |
 | [High](#high-issues)                 | 3         |
 | [Medium](#medium-issues)               | 2         |
-| Low                     | 0         |
-| [Informational](#informative-issues)            | 2         |
+
 
 ---
 
@@ -27,8 +37,6 @@
 | [H-03](#h-03-missing-liquidation-logic) | Missing liquidation logic | [Missing Logic](#high-issues) | [High](#high-issues) |
 | [M-01](#m-01-collateralprice-is-a-static-amount) | `collateralPrice` is a static amount | [Logic Error](#medium-issues) | [Medium](#medium-issues) |
 | [M-02](#m-02-second-preimage-attack-in-merkle-tree-possible) | Second preimage attack in Merkle tree possible | [Logic Error](#medium-issues) | [Medium](#medium-issues) |
-| [I-01](#i-01-missing-storage-gap-in-upgradeable-contracts-oz-version-50) | Upgradeable contracts will have a missing storage gap if OZ version >5.0 | [OZ Package Version](#informative-issues) | [Informational](#informative-issues) |
-| [I-02](#i-02-multicallupgradeable-does-not-identify-non-canonical-context) | `Multicall` does not identify non-canonical context | [Missing Logic](#informative-issues) | [Informational](#informative-issues) |
 
 ---
 
@@ -854,26 +862,3 @@ The contract is vulnerable to a **second preimage attack** within the Merkle tre
 To mitigate this vulnerability, review the Merkle tree implementation and follow best practices to prevent second preimage attacks. The following [article by Rareskills](https://rareskills.io) provides an in-depth explanation of this type of attack and the appropriate preventive measures.
 
 ---
-## **Informative Issues**
-
-### **I-01: Missing Storage Gap in Upgradeable Contracts (OZ Version >5.0)**
-
-### **Description:**
-OpenZeppelin (OZ) upgradeable contracts in versions **greater than 5.0** utilize **Namespaced Storage**, while older versions leave storage gaps. If the protocol upgrades to a newer OZ version without accounting for these gaps, it could lead to issues when deploying new versions of the contract, potentially causing storage collisions or corrupting the contract state.
-
-
-### **Recommendation:**
-When using upgradeable contracts in OZ versions greater than 5.0, ensure that a storage gap is added to the contracts to maintain compatibility and prevent any issues during future upgrades.
-
----
-
-### **I-02: MulticallUpgradeable Does Not Identify Non-Canonical Context**
-
-### **Description:**
-The OpenZeppelin implementation of `MulticallUpgradeable` does not fully account for **non-canonical context** when handling multiple calls in a single transaction. Specifically, the Halborn contracts interact with the caller's address (`msg.sender`), but since all contracts are upgradeable, proper context handling with `_msgSender()` should be considered to ensure that the protocol behaves correctly in future upgrades.
-
----
-
-### **Recommendation:**
-Implement context preservation using `_msgSender()` to ensure maximum safety in future contract versions, particularly for contracts utilizing `MulticallUpgradeable`. This ensures that the proper message sender context is maintained across different versions and upgrades.
-
