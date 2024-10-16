@@ -352,7 +352,7 @@ nft.safeTransferFrom(address(this), msg.sender, id);
 totalCollateral[msg.sender] -= collateralPrice;
 delete idsCollateral[id];
 ```
-## **C-05:`depositNFTCollateral` Function Prevents NFT Deposits **
+## C-05:`depositNFTCollateral` Function Prevents NFT Deposits 
 - **Link:** link
 
 ### **Issue:**
