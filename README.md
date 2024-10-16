@@ -236,18 +236,13 @@ to
 ``` solidity
 + totalCollateral[msg.sender] - usedCollateral[msg.sender] >= amount;
 ```
-## **C-05: User Can Exit the Protocol with Both Their NFT and a Loan**
+## **C-04: User Can Exit the Protocol with Both Their NFT and a Loan**
 - **Link:** [HalbornLoans.sol#L53](https://github.com/HalbornSecurity/CTFs/blob/6bc8cc1c8f5ac6c75a21da6d5ef7043f0862603b/HalbornCTF_Solidity_Ethereum/src/HalbornLoans.sol#L53)
 
 ### **Issue:**
 The `withdrawCollateral` function fails to follow the **Checks-Effects-Interactions (CEI)** pattern, creating a vulnerability. Specifically, the `safeTransferFrom` call hands back control to the user if it is a contract. This opens up the possibility for a **reentrancy attack**, where a malicious user can take out a loan **before their collateral is properly decreased**.
 
 
-```solidity
-
-```
-
-- 
 - 
 
 ### POC
@@ -330,61 +325,114 @@ contract HalbornLoansTest is Test {
 ### Explanation of the PoC
 
 #### Setup:
-- 
+- The attacker deposits an NFT as collateral through the HalbornLoans contract.
+- A malicious contract is deployed to perform a reentrancy attack.
+
 
 #### **Exploit:**
-- 
-- 
-
+- The attacker’s malicious contract calls withdrawCollateral to reclaim the NFT.
+- During the external call (safeTransferFrom), the attacker triggers the reentrancy attack and takes a loan.
+- Since the collateral was not yet decreased, the attacker exits with both the loan and the NFT.
 
 ---
 
 ### **Recommendation:**
 
-```solidity 
-```
-to
-``` solidity
-```
-## **C-0: tem**
-- **Link:** link
-
-### **Issue:**
+Reorder the operations to follow the CEI pattern:
 
 
 ```solidity
-
+ totalCollateral[msg.sender] -= collateralPrice;
+ delete idsCollateral[id];
+ nft.safeTransferFrom(address(this), msg.sender, id);
 ```
+to
+``` solidity
+nft.safeTransferFrom(address(this), msg.sender, id);
+totalCollateral[msg.sender] -= collateralPrice;
+delete idsCollateral[id];
+```
+## **C-05:`depositNFTCollateral` Function Prevents NFT Deposits **
+- **Link:** link
 
-- 
+### **Issue:**
+The `depositNFTCollateral` function fails to accept NFT deposits due to the contract not implementing the necessary interface to handle NFT transfers. When the `safeTransferFrom` function is called, it checks if the recipient is a contract. If it is, the ERC721 standard requires that the recipient implements the `onERC721Received` function. Since the `HalbornLoans` contract does not implement this function, the call to deposit NFTs will revert, effectively blocking any NFT deposits.
+
+
 - 
 
 ### POC
 
 ```solidity
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
 
+import "forge-std/Test.sol";
+import "../src/HalbornLoans.sol";
+import "../src/HalbornNFT.sol";
+
+contract HalbornLoansTest is Test {
+    HalbornLoans loanContract;
+    HalbornNFT nft;
+
+    function setUp() public {
+        nft = new HalbornNFT();
+        loanContract = new HalbornLoans(1 ether);
+
+        // Initialize contracts
+        loanContract.initialize(address(0), address(nft));
+
+        // Mint NFT to the test contract and approve it for the loan contract
+        nft.mint(address(this), 1);
+        nft.approve(address(loanContract), 1);
+    }
+
+    function testDepositNFTCollateral() public {
+        // Attempt to deposit the NFT as collateral
+        vm.expectRevert("ERC721: transfer to non ERC721Receiver implementer");
+        loanContract.depositNFTCollateral(1);
+    }
+}
 
 ```
 
 ### Explanation of the PoC
 
 #### Setup:
-- 
-
+- The test deploys the HalbornLoans contract and the HalbornNFT contract.
+- An NFT is minted to the test contract and approved for use by the HalbornLoans contract.
 #### **Exploit:**
-- 
-- 
-
+- When attempting to deposit the NFT using depositNFTCollateral, the transaction fails due to the contract not implementing IERC721Receiver.
+- The test expects the transaction to revert with an error indicating that the receiving contract does not implement the necessary ERC721Receiver interface.
 
 ---
 
 ### **Recommendation:**
+To fix this issue, the `HalbornLoans` contract must implement the `IERC721Receiver` interface from OpenZeppelin, allowing it to properly handle incoming NFT transfers. Specifically, the `onERC721Received` function needs to be implemented.
 
-```solidity 
-```
-to
-``` solidity
-```
+#### Solution:
+
+1. Update the contract to extend `IERC721ReceiverUpgradeable`:
+    ```solidity
+    contract HalbornLoans is Initializable, UUPSUpgradeable, MulticallUpgradeable, IERC721ReceiverUpgradeable {
+   ```
+    to
+    ```solidity
+    contract HalbornLoans is Initializable, UUPSUpgradeable, MulticallUpgradeable {
+    ```
+
+2. Implement the `onERC721Received` function:
+    ```solidity
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes calldata
+    ) external override returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
+    ```
+
 ## **C-0: tem**
 - **Link:** link
 
