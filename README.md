@@ -659,6 +659,8 @@ Each of these solutions provides a way to manage ID collisions and maintain the 
 
 ---
 
+## **High Issues**
+
 ### **H-01: Token Loan Amount Incorrectly Assumed to Be Equal to `collateralPrice`**
 
 - **Link:** [HalbornLoans.sol](https://github.com/HalbornSecurity/CTFs/blob/master/HalbornCTF_Solidity_Ethereum/src/HalbornLoans.sol)
@@ -791,6 +793,8 @@ To mitigate the risk of bad debt, the protocol should implement an LTV ratio tha
 
 ---
 
+## **Medium Issues**
+
 ### **M-01: `collateralPrice` is a Static Amount**
 
 - **Link:** [HalbornLoans.sol](https://github.com/HalbornSecurity/CTFs/blob/master/HalbornCTF_Solidity_Ethereum/src/HalbornLoans.sol)
@@ -819,6 +823,7 @@ The contract is vulnerable to a **second preimage attack** within the Merkle tre
 To mitigate this vulnerability, review the Merkle tree implementation and follow best practices to prevent second preimage attacks. The following [article by Rareskills](https://rareskills.io) provides an in-depth explanation of this type of attack and the appropriate preventive measures.
 
 ---
+## **Informative Issues**
 
 ### **I-01: Missing Storage Gap in Upgradeable Contracts (OZ Version >5.0)**
 
