@@ -433,10 +433,81 @@ To fix this issue, the `HalbornLoans` contract must implement the `IERC721Receiv
     }
     ```
 
-## **C-0: tem**
-- **Link:** link
+## **C-06: `mintAirdrops` Function Reverts on Non-Minted Tokens**
+- **Link:** [HalbornNFT.sol#L46](https://github.com/HalbornSecurity/CTFs/blob/6bc8cc1c8f5ac6c75a21da6d5ef7043f0862603b/HalbornCTF_Solidity_Ethereum/src/HalbornNFT.sol#L46)
 
 ### **Issue:**
+In the `mintAirdrops` function, the following check is performed to verify if a token ID has already been minted:
+
+```solidity
+require(_exists(id), "Token already minted");
+
+```
+This logic is incorrect because _exists(id) will return false if the token has not yet been minted. As a result, the require statement will revert the transaction when trying to mint a new token, meaning users can only pass the check if they attempt to mint an already minted NFT, which is not the desired behavior.
+
+
+- 
+
+### POC
+
+```solidity
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
+
+import "forge-std/Test.sol";
+import "../src/HalbornNFT.sol";
+
+contract HalbornNFTTest is Test {
+    HalbornNFT nft;
+
+    function setUp() public {
+        nft = new HalbornNFT();
+        nft.initialize(bytes32(0), 1 ether);
+    }
+
+    function testMintAirdropFailsForNonMintedToken() public {
+        // Attempt to mint a token that does not exist yet
+        bytes32; // Simulating empty Merkle proof
+        vm.expectRevert("Token already minted");
+        nft.mintAirdrops(1, proof);
+    }
+}
+
+```
+
+### Explanation of the PoC
+
+#### Setup:
+- The test deploys the HalbornNFT contract and simulates an attempt to mint an airdrop token.
+
+#### **Exploit:**
+- When attempting to mint a new token, the transaction reverts because the _exists(id) check incorrectly prevents minting of non-existent tokens.
+  
+
+
+---
+
+### **Recommendation:**
+To fix this issue, the logic should be inverted so that the minting process checks if the token does not already exist before allowing minting. So, needs to be a update to the require statement in the mintAirdrops function.
+```solidity
+require(_exists(id), "Token already minted");
+```
+to
+``` solidity
+require(!_exists(id), "Token already minted");
+```
+This ensures that the function allows minting of tokens that have not yet been minted, and reverts only if a user tries to mint a token that has already been minted.
+
+
+## **C-07: `_authorizeUpgrade` Lacks Authorization Checks**
+- **Link:**
+  - [HalbornLoans.sol](https://github.com/HalbornSecurity/CTFs/blob/master/HalbornCTF_Solidity_Ethereum/src/HalbornLoans.sol)
+  - [HalbornNFT.sol](https://github.com/HalbornSecurity/CTFs/blob/master/HalbornCTF_Solidity_Ethereum/src/HalbornNFT.sol)
+  - [HalbornToken.sol](https://github.com/HalbornSecurity/CTFs/blob/master/HalbornCTF_Solidity_Ethereum/src/HalbornToken.sol)
+
+### **Issue:**
+The `_authorizeUpgrade` function, inherited from the UUPSUpgradeable contract in OpenZeppelin, **lacks proper authorization checks**. Without these checks, **any user** can call the `upgradeTo` function to upgrade the contract. This creates a significant vulnerability, as unauthorized users could potentially upgrade the contract to malicious code.
+According to [OpenZeppelin's official documentation](https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable/blob/789ba4f167cc94088e305d78e4ae6f3c1ec2e6f1/contracts/proxy/utils/UUPSUpgradeable.sol#L122-L131), the `_authorizeUpgrade` function must include authorization logic to ensure only authorized users (typically the owner) can perform upgrades.
 
 
 ```solidity
@@ -449,571 +520,323 @@ To fix this issue, the `HalbornLoans` contract must implement the `IERC721Receiv
 ### POC
 
 ```solidity
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
 
+import "forge-std/Test.sol";
+import "../src/HalbornLoans.sol";
+import "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
+
+contract MaliciousUpgrade is HalbornLoans {
+    function getMaliciousData() public pure returns (string memory) {
+        return "This is malicious code!";
+    }
+}
+
+contract HalbornLoansTest is Test {
+    HalbornLoans loanContract;
+    MaliciousUpgrade maliciousContract;
+    address owner = address(1);
+    address attacker = address(2);
+
+    function setUp() public {
+        // Deploy the original contract
+        loanContract = new HalbornLoans(1 ether);
+        loanContract.initialize(address(0), address(0));
+
+        // Deploy the malicious contract
+        maliciousContract = new MaliciousUpgrade();
+
+        // Set up the contract with the owner
+        vm.startPrank(owner);
+        loanContract.transferOwnership(owner);
+        vm.stopPrank();
+    }
+
+    function testUnauthorizedUpgrade() public {
+        // Simulate attacker attempting to upgrade the contract
+        vm.startPrank(attacker);
+        vm.expectRevert("Ownable: caller is not the owner");
+        loanContract.upgradeTo(address(maliciousContract)); // Unauthorized upgrade attempt
+        vm.stopPrank();
+    }
+}
 
 ```
 
 ### Explanation of the PoC
 
 #### Setup:
-- 
-
+- The test deploys the original HalbornLoans contract.
+- A malicious contract (MaliciousUpgrade) is deployed, containing additional malicious functionality.
+- The contract ownership is transferred to a trusted owner account (owner), but an unauthorized user (attacker) attempts to upgrade the contract.
 #### **Exploit:**
-- 
-- 
+- Without proper authorization in the _authorizeUpgrade function, any user can call upgradeTo and replace the contract with a malicious version.
+- The test simulates this by having the attacker attempt to perform the upgrade, but the function is expected to revert due to a lack of authorization.
 
 
 ---
 
 ### **Recommendation:**
+To fix this vulnerability, the `_authorizeUpgrade` function should be overridden and include the `onlyOwner` modifier or similar access control mechanism to ensure that only the contract owner can authorize upgrades.
 
-```solidity 
+```solidity
+function _authorizeUpgrade(address) internal override {}
 ```
 to
 ``` solidity
+function _authorizeUpgrade(address) internal override onlyOwner {}
 ```
-## **C-0: tem**
-- **Link:** link
+By adding the onlyOwner modifier, only the contract owner will be able to authorize upgrades, significantly reducing the risk of unauthorized contract changes.
+
+## **C-08: `mintBuyWithEth` May Become Unusable for NFT Minting**
+- **Link:** [HalbornNFT.sol#L59-L67](https://github.com/HalbornSecurity/CTFs/blob/6bc8cc1c8f5ac6c75a21da6d5ef7043f0862603b/HalbornCTF_Solidity_Ethereum/src/HalbornNFT.sol#L59-L67)
+
 
 ### **Issue:**
+The `mintBuyWithEth` function uses an `idCounter` to generate new NFT IDs by incrementing the counter before minting. However, it does not account for the possibility that an NFT with the same ID might already exist due to the `mintAirdrops` function, which allows minting NFTs with arbitrary IDs. 
 
+For example, if `mintAirdrops` mints an NFT with ID 1, and then `mintBuyWithEth` increments `idCounter` to 1, the function will fail because an NFT with that ID already exists. As a result, the `mintBuyWithEth` function will **become unusable**, as it will keep attempting to mint NFTs with IDs that have already been assigned.
 
-```solidity
+This issue can effectively **brick the minting process**, preventing any new NFTs from being minted via `mintBuyWithEth`.
 
-```
-
-- 
 - 
 
 ### POC
 
 ```solidity
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
 
+import "forge-std/Test.sol";
+import "../src/HalbornNFT.sol";
+
+contract HalbornNFTTest is Test {
+    HalbornNFT nft;
+
+    function setUp() public {
+        nft = new HalbornNFT();
+        nft.initialize(bytes32(0), 1 ether);
+
+        // Simulate airdrop minting an NFT with ID 1
+        bytes32;
+        nft.mintAirdrops(1, proof);
+    }
+
+    function testMintBuyWithEthFailsDueToDuplicateID() public {
+        // Increment the idCounter to 1 (same as the airdropped NFT)
+        vm.prank(address(this));
+        vm.deal(address(this), 1 ether);
+
+        // Attempt to mint via mintBuyWithEth, but it will fail due to ID collision
+        vm.expectRevert("ERC721: token already minted");
+        nft.mintBuyWithETH{value: 1 ether}();
+    }
+}
 
 ```
 
 ### Explanation of the PoC
 
 #### Setup:
-- 
+- The test deploys the HalbornNFT contract and mints an NFT with ID 1 using mintAirdrops.
+-The mintBuyWithEth function is then called, which increments idCounter to 1 and attempts to mint another NFT with the same ID.
 
 #### **Exploit:**
-- 
-- 
-
+- The second mint attempt fails because an NFT with ID 1 already exists, leading to a transaction revert due to the ID collision.
+  
 
 ---
 
 ### **Recommendation:**
 
-```solidity 
-```
-to
-``` solidity
-```
-## **C-0: tem**
-- **Link:** link
+There is no simple fix for this issue because `mintAirdrops` can mint NFTs with arbitrary IDs, while `mintBuyWithEth` relies on a sequential counter. Several potential solutions could be implemented:
+
+---
+
+#### **Off-Chain ID Management:**
+- Keep track of minted IDs off-chain using a database or API. Users could interact with the API to request an available ID when minting via `mintBuyWithEth`.
+
+---
+
+#### **Rework Minting Logic:**
+- Rework both the `mintAirdrops` and `mintBuyWithEth` functions to use a **shared pool** of available IDs. For example, you could predefine a range of IDs for each function to ensure no overlap between the two minting processes.
+
+---
+
+#### **ID Randomization:**
+- Implement a random or hashed ID generation system to prevent collisions. However, this method might still require tracking which IDs have already been minted to avoid duplications.
+
+---
+
+Each of these solutions provides a way to manage ID collisions and maintain the functionality of both minting processes, ensuring NFTs can be minted without breaking the contract.
+
+
+## **H-01: Token Loan Amount Incorrectly Assumed to Be Equal to `collateralPrice`**
+
+- **Link:** [HalbornLoans.sol](https://github.com/HalbornSecurity/CTFs/blob/master/HalbornCTF_Solidity_Ethereum/src/HalbornLoans.sol)
+
+---
 
 ### **Issue:**
+The `getLoan` function assumes that the value of the collateral (e.g., an NFT) is always equivalent to the `collateralPrice` (e.g., 2 Ether) and mints tokens accordingly. The function does not take into account market fluctuations in the value of the tokens or the collateral. 
 
+For example:
+- If the `collateralPrice` is 2 Ether, the user will receive 2 HalbornTokens (assuming 1:1 token to Ether).
+- However, if the market value of the tokens increases or decreases due to external trading (e.g., on decentralized exchanges), the tokens might be worth significantly more or less than the collateral.
 
-```solidity
+This creates two main vulnerabilities:
+1. **Overvalued Loans:** If token prices rise, users can take out loans worth more than their collateral and have no incentive to repay the loan.
+2. **Undervalued Loans:** If token prices drop, users will receive less value from their collateral, making the loan process unattractive.
 
-```
+---
 
-- 
-- 
+### **Proof of Concept (PoC):**
 
-### POC
+#### **Step-by-Step Explanation of the Vulnerability:**
 
-```solidity
+1. **User Deposits NFT as Collateral:**
+   - A user deposits an NFT valued at 2 Ether (based on the `collateralPrice`).
+   
+2. **Token Value Fluctuation:**
+   - The `getLoan` function mints 2 HalbornTokens (1 token per Ether), assuming the price is always 2 Ether. However, due to market fluctuations, the value of each token increases on external markets (e.g., 1 token now equals 2 Ether).
 
+3. **User Receives a Loan:**
+   - The user takes out a loan of 2 HalbornTokens.
+   
+4. **Value Imbalance:**
+   - The user now has tokens worth 4 Ether in total (2 tokens at 2 Ether each) but only deposited 2 Ether worth of collateral.
+   - The user has no incentive to repay the loan, as the value of the loaned tokens exceeds the collateral.
 
-```
-
-### Explanation of the PoC
-
-#### Setup:
-- 
-
-#### **Exploit:**
-- 
-- 
-
+5. **Loss to the Protocol:**
+   - The protocol suffers a loss because the collateral (NFT) is no longer worth the value of the loaned tokens, leading to potential bad debt in the system.
 
 ---
 
 ### **Recommendation:**
+To address this issue, the loan system should dynamically calculate the loan value based on the **current market value** of both the collateral and the tokens, rather than relying on a static `collateralPrice`. This can be achieved using an **oracle** or a similar pricing mechanism to ensure accurate loan amounts.
 
-```solidity 
-```
-to
-``` solidity
-```
-## **C-0: tem**
-- **Link:** link
+#### Solution:
+1. **Integrate an Oracle:**
+   - Use a price oracle to track the real-time market value of both the collateral (NFT) and the token being loaned.
+   
+2. **Dynamic Loan Calculation:**
+   - Modify the `getLoan` function to mint tokens based on the real-time market value of the collateral rather than assuming a fixed price.
+
+## **H-02: Missing Liquidation Logic**
+
+- **Link:** [HalbornLoans.sol](https://github.com/HalbornSecurity/CTFs/blob/master/HalbornCTF_Solidity_Ethereum/src/HalbornLoans.sol)
+
+---
 
 ### **Issue:**
+The `HalbornLoans` contract currently lacks **liquidation logic**, meaning that if users accrue bad debt (i.e., their loan value exceeds the value of their collateral), there is no mechanism in place to recover losses for the protocol. Without this, users who default on their loans may leave the protocol with unrecoverable debt, causing significant financial loss.
 
+Proper liquidation logic would allow the protocol to seize and sell the collateral (e.g., NFTs) from users who have defaulted, ensuring that some or all of the losses can be recouped.
 
-```solidity
+---
 
-```
+### **Proof of Concept (PoC):**
 
-- 
-- 
+#### **Step-by-Step Explanation of the Vulnerability:**
 
-### POC
+1. **User Takes a Loan:**
+   - A user deposits collateral (an NFT) worth 2 Ether and takes a loan based on this collateral.
 
-```solidity
+2. **Collateral Value Drops:**
+   - Due to market conditions, the value of the collateral drops, making the loan value greater than the collateral. For example, the NFT may now be worth 1.5 Ether, while the loan amount remains 2 Ether.
 
+3. **Bad Debt Accrual:**
+   - Since the loan value exceeds the collateral, the protocol is at risk of incurring bad debt if the user defaults and chooses not to repay the loan.
 
-```
-
-### Explanation of the PoC
-
-#### Setup:
-- 
-
-#### **Exploit:**
-- 
-- 
-
+4. **No Liquidation Mechanism:**
+   - Without a liquidation mechanism, the protocol has no way to seize the NFT and recoup the loaned tokens, leaving the protocol with an unrecoverable loss.
 
 ---
 
 ### **Recommendation:**
+To address this issue, liquidation logic should be implemented to automatically **seize and sell collateral** (e.g., NFTs) when the loan value exceeds a certain threshold (such as 80% of the collateral value). This would allow the protocol to recover part or all of the loan in case of a default.
 
-```solidity 
-```
-to
-``` solidity
-```
-## **C-0: tem**
-- **Link:** link
+#### Solution:
+1. **Add a Liquidation Function:**
+   - Introduce a function that calculates when a user's loan-to-collateral ratio (LTV) exceeds a dangerous threshold (e.g., 80%) and triggers liquidation of the collateral.
+
+ 2. **Define a Liquidation Threshold:**
+   - Set a threshold, such as 80% LTV, to trigger liquidation when a loan exceeds a certain percentage of the collateral's value.
+
+## **H-03: Loans Have a 100% Loan-to-Value (LTV) Ratio, Leading to Potential Bad Debt**
+
+- **Link:** [HalbornLoans.sol](https://github.com/HalbornSecurity/CTFs/blob/master/HalbornCTF_Solidity_Ethereum/src/HalbornLoans.sol)
+
+---
 
 ### **Issue:**
+The current loan system allows users to take out loans with an LTV (Loan-to-Value) ratio of 100%, meaning users can borrow tokens equivalent to the full value of their collateral. This creates a significant risk of **bad debt** if the value of the loaned tokens increases.
 
+For example:
+- If a user takes out a loan worth $1,000 and the token price increases to $1,010, the user now has tokens worth more than the value of the collateral. In such a scenario, the user has no incentive to repay the loan, leading to bad debt for the protocol.
+- The collateral (e.g., an NFT) remains locked in the protocol, while the user holds tokens worth more than the collateral.
 
-```solidity
+This results in the protocol accruing bad debt, as it has issued tokens that exceed the collateral's value, and the user may choose not to repay the loan.
 
-```
+---
 
-- 
-- 
+### **Proof of Concept (PoC):**
 
-### POC
+#### **Step-by-Step Explanation of the Vulnerability:**
 
-```solidity
+1. **User Takes a Loan:**
+   - A user deposits collateral (e.g., an NFT) worth $1,000 and takes out a loan of $1,000 worth of tokens (100% LTV).
 
+2. **Token Value Increases:**
+   - Due to external market conditions, the price of the tokens rises, and the user’s loan now holds a value of $1,010.
 
-```
+3. **User Keeps the Loan:**
+   - The user has no incentive to repay the loan, as it would be a financial loss for them. The protocol has now issued tokens worth more than the collateral, and the collateral is stuck in the system.
 
-### Explanation of the PoC
-
-#### Setup:
-- 
-
-#### **Exploit:**
-- 
-- 
-
+4. **Protocol Accrues Bad Debt:**
+   - The protocol is left with bad debt, as the user is unlikely to repay the loan, and the collateral’s value does not cover the loaned tokens.
 
 ---
 
 ### **Recommendation:**
+To mitigate the risk of bad debt, the protocol should implement an LTV ratio that is lower than 100%, ideally between **70-80%**, which is common practice in other protocols. This ensures that the loan value is always lower than the collateral, giving users an incentive to repay loans even if token prices fluctuate.
 
-```solidity 
-```
-to
-``` solidity
-```
-## **C-0: tem**
-- **Link:** link
+#### Solution:
+1. **Implement a Lower LTV Ratio:**
+   - Add an LTV ratio that limits how much a user can borrow based on the value of their collateral.
+     
+2. **Adjust Loan Amount Based on Real-Time Prices:**
+   - Use an oracle to determine the current market value of the collateral and calculate the maximum loan amount based on the LTV ratio.
+
+## **M-01: `collateralPrice` is a Static Amount**
+
+- **Link:** [HalbornLoans.sol](https://github.com/HalbornSecurity/CTFs/blob/master/HalbornCTF_Solidity_Ethereum/src/HalbornLoans.sol)
+
+---
 
 ### **Issue:**
-
-
-```solidity
-
-```
-
-- 
-- 
-
-### POC
-
-```solidity
-
-
-```
-
-### Explanation of the PoC
-
-#### Setup:
-- 
-
-#### **Exploit:**
-- 
-- 
-
+In the `HalbornLoans` contract, the `collateralPrice` is a static value, which means the NFT is always treated as having the same collateral value regardless of its actual market price. For example, whether the NFT is worth 1 Ether or 0.1 Ether, the loan amount remains the same. This leads to significant price fluctuations and imbalances where some users profit while others may incur losses. 
 
 ---
 
 ### **Recommendation:**
+There are two potential solutions:
+1. **Make `collateralPrice` Immutable:** This would preserve the collateral-to-loan ratio and prevent fluctuations in value.
+2. **Add a Setter for `collateralPrice`:** Allow dynamic pricing with a setter function, ensuring that any price change maintains the same ratio across all loans.
 
-```solidity 
-```
-to
-``` solidity
-```
-## **C-0: tem**
-- **Link:** link
+---
+
+## **M-02: Possible Second Preimage Attack in Merkle Tree**
+
+- **Link:** [HalbornNFT.sol](https://github.com/HalbornSecurity/CTFs/blob/6bc8cc1c8f5ac6c75a21da6d5ef7043f0862603b/HalbornCTF_Solidity_Ethereum/src/HalbornNFT.sol#L45)
+
+---
 
 ### **Issue:**
-
-
-```solidity
-
-```
-
-- 
-- 
-
-### POC
-
-```solidity
-
-
-```
-
-### Explanation of the PoC
-
-#### Setup:
-- 
-
-#### **Exploit:**
-- 
-- 
-
+The contract is vulnerable to a **second preimage attack** within the Merkle tree structure. In this attack, an adversary attempts to create a new piece of data (a leaf node) that produces the same hash value as an existing leaf node without modifying the original data. This could lead to security breaches in verifying legitimate users or transactions.
 
 ---
 
 ### **Recommendation:**
-
-```solidity 
-```
-to
-``` solidity
-```
-## **C-0: tem**
-- **Link:** link
-
-### **Issue:**
-
-
-```solidity
-
-```
-
-- 
-- 
-
-### POC
-
-```solidity
-
-
-```
-
-### Explanation of the PoC
-
-#### Setup:
-- 
-
-#### **Exploit:**
-- 
-- 
-
-
----
-
-### **Recommendation:**
-
-```solidity 
-```
-to
-``` solidity
-```
-## **C-0: tem**
-- **Link:** link
-
-### **Issue:**
-
-
-```solidity
-
-```
-
-- 
-- 
-
-### POC
-
-```solidity
-
-
-```
-
-### Explanation of the PoC
-
-#### Setup:
-- 
-
-#### **Exploit:**
-- 
-- 
-
-
----
-
-### **Recommendation:**
-
-```solidity 
-```
-to
-``` solidity
-```
-## **C-0: tem**
-- **Link:** link
-
-### **Issue:**
-
-
-```solidity
-
-```
-
-- 
-- 
-
-### POC
-
-```solidity
-
-
-```
-
-### Explanation of the PoC
-
-#### Setup:
-- 
-
-#### **Exploit:**
-- 
-- 
-
-
----
-
-### **Recommendation:**
-
-```solidity 
-```
-to
-``` solidity
-```
-## **C-0: tem**
-- **Link:** link
-
-### **Issue:**
-
-
-```solidity
-
-```
-
-- 
-- 
-
-### POC
-
-```solidity
-
-
-```
-
-### Explanation of the PoC
-
-#### Setup:
-- 
-
-#### **Exploit:**
-- 
-- 
-
-
----
-
-### **Recommendation:**
-
-```solidity 
-```
-to
-``` solidity
-```
-## **C-0: tem**
-- **Link:** link
-
-### **Issue:**
-
-
-```solidity
-
-```
-
-- 
-- 
-
-### POC
-
-```solidity
-
-
-```
-
-### Explanation of the PoC
-
-#### Setup:
-- 
-
-#### **Exploit:**
-- 
-- 
-
-
----
-
-### **Recommendation:**
-
-```solidity 
-```
-to
-``` solidity
-```
-## **C-0: tem**
-- **Link:** link
-
-### **Issue:**
-
-
-```solidity
-
-```
-
-- 
-- 
-
-### POC
-
-```solidity
-
-
-```
-
-### Explanation of the PoC
-
-#### Setup:
-- 
-
-#### **Exploit:**
-- 
-- 
-
-
----
-
-### **Recommendation:**
-
-```solidity 
-```
-to
-``` solidity
-```
-## **C-0: tem**
-- **Link:** link
-
-### **Issue:**
-
-
-```solidity
-
-```
-
-- 
-- 
-
-### POC
-
-```solidity
-
-
-```
-
-### Explanation of the PoC
-
-#### Setup:
-- 
-
-#### **Exploit:**
-- 
-- 
-
-
----
-
-### **Recommendation:**
-
-```solidity 
-```
-to
-``` solidity
-```## **C-0: tem**
-- **Link:** link
-
-### **Issue:**
-
-
-```solidity
-
-```
-
-- 
-- 
-
-### POC
-
-```solidity
-
-
-```
-
-### Explanation of the PoC
-
-#### Setup:
-- 
-
-#### **Exploit:**
-- 
-- 
-
-
----
-
-### **Recommendation:**
-
-```solidity 
-```
-to
-``` solidity
-```
+To mitigate this vulnerability, review the Merkle tree implementation and follow best practices to prevent second preimage attacks. The following [article by Rareskills](https://rareskills.io) provides an in-depth explanation of this type of attack and the appropriate preventive measures.
