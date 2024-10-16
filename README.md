@@ -1,5 +1,36 @@
+## Vulnerability Summary
 
+| **Vulnerability Level** | **Total** |
+|-------------------------|-----------|
+| [Critical](#critical-issues)             | 8         |
+| [High](#high-issues)                 | 3         |
+| [Medium](#medium-issues)               | 2         |
+| Low                     | 0         |
+| [Informational](#informative-issues)            | 2         |
 
+---
+
+## Detailed Findings
+
+| **ID**  | **Issue** | **Category**  | **Severity** |
+|--------|------------|---------------|--------------|
+| [C-01](#c-01-returnloan-increases-user-debt-instead-of-reducing-it) | `returnLoan` increases user debt instead of decreasing it | [Logic Error](#critical-issues) | [Critical](#critical-issues) |
+| [C-02](#c-02-unauthorized-access-to-setmerkleroot-allows-arbitrary-changes) | `getLoan` lets users only get loans bigger than their collateral | [Logic Error](#critical-issues) | [Critical](#critical-issues) |
+| [C-03](#c-03-unauthorized-access-to-setmerkleroot-allows-arbitrary-changes) | `setMerkleRoot` missing authorization | [Authorization](#critical-issues) | [Critical](#critical-issues) |
+| [C-04](#c-04-user-can-exit-the-protocol-with-both-their-nft-and-a-loan) | `depositNFTCollateral` NFTs cannot be deposited to the contract | [Logic Error](#critical-issues) | [Critical](#critical-issues) |
+| [C-05](#c-05-user-can-exit-the-protocol-with-both-their-nft-and-a-loan) | User can exit the protocol with both their NFT and a loan | [Reentrancy](#critical-issues) | [Critical](#critical-issues) |
+| [C-06](#c-06-mintairdrops-function-reverts-on-non-minted-tokens) | `mintAirdrops` reverts on non-minted tokens | [Logic Error](#critical-issues) | [Critical](#critical-issues) |
+| [C-07](#c-07-mintbuywitheth-function-will-eventually-be-unable-to-mint-nfts) | `mintBuyWithEth` will eventually be unable to mint NFTs | [Logic Error](#critical-issues) | [Critical](#critical-issues) |
+| [C-08](#c-08-authorizeupgrade-lacks-authorization-checks) | `_authorizeUpgrade` has no authorization | [Authorization](#critical-issues) | [Critical](#critical-issues) |
+| [H-01](#h-01-token-loan-amount-incorrectly-assumed-to-be-equal-to-collateralprice) | Token loan amount treated as always equal value to `collateralPrice` | [Logic Error](#high-issues) | [High](#high-issues) |
+| [H-02](#h-02-loans-have-a-100-loan-to-value-ltv-ratio-leading-to-potential-bad-debt) | Loans have an LTV of 100% which can lead to bad debt | [Missing Logic](#high-issues) | [High](#high-issues) |
+| [H-03](#h-03-missing-liquidation-logic) | Missing liquidation logic | [Missing Logic](#high-issues) | [High](#high-issues) |
+| [M-01](#m-01-collateralprice-is-a-static-amount) | `collateralPrice` is a static amount | [Logic Error](#medium-issues) | [Medium](#medium-issues) |
+| [M-02](#m-02-second-preimage-attack-in-merkle-tree-possible) | Second preimage attack in Merkle tree possible | [Logic Error](#medium-issues) | [Medium](#medium-issues) |
+| [I-01](#i-01-missing-storage-gap-in-upgradeable-contracts-oz-version-50) | Upgradeable contracts will have a missing storage gap if OZ version >5.0 | [OZ Package Version](#informative-issues) | [Informational](#informative-issues) |
+| [I-02](#i-02-multicallupgradeable-does-not-identify-non-canonical-context) | `Multicall` does not identify non-canonical context | [Missing Logic](#informative-issues) | [Informational](#informative-issues) |
+
+---
 
 
 ## **Critical Issues**
